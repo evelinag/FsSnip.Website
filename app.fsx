@@ -3,19 +3,18 @@
 #r "packages/FSharp.Data/lib/net40/FSharp.Data.dll"
 #r "packages/DotLiquid/lib/NET45/DotLiquid.dll"
 #r "packages/Suave.DotLiquid/lib/net40/Suave.DotLiquid.dll"
+#if INTERACTIVE
 #load "packages/FSharp.Azure.StorageTypeProvider/StorageTypeProvider.fsx"
 #load "packages/FSharp.Formatting/FSharp.Formatting.fsx"
+#endif
 open System
 open System.Web
 open System.IO
 open Suave
 open Suave.Web
-open Suave.Http
-open Suave.Types
+open Suave.Operators
+open Suave.Filters
 open FSharp.Data
-open Suave.Http.Applicatives
-open Suave.Http.Successful
-open Suave.Http.Writers
 open FSharp.Azure.StorageTypeProvider
 
 // -------------------------------------------------------------------------------------------------
@@ -29,6 +28,7 @@ open FSharp.Azure.StorageTypeProvider
 #load "code/common/data.fs"
 #load "code/common/rssfeed.fs"
 #load "code/pages/home.fs"
+#load "code/pages/error.fs"
 #load "code/pages/insert.fs"
 #load "code/pages/update.fs"
 #load "code/pages/snippet.fs"
@@ -93,7 +93,7 @@ let app =
 #else
 let cfg =
   { defaultConfig with
-      bindings = [ HttpBinding.mk' HTTP  "127.0.0.1" 8011 ]
+      bindings = [ HttpBinding.mkSimple HTTP  "127.0.0.1" 8011 ]
       homeFolder = Some __SOURCE_DIRECTORY__ }
 let _, server = startWebServerAsync cfg app
 Async.Start(server)

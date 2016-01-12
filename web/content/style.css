@@ -25,7 +25,13 @@ a, a:visited, a:link, a:hover {
   text-decoration:underline;
 }
 
-/*********************************** Styles for the home page ******************************************/
+h2 .anchor {
+  color:black;
+  font-size:22px;
+  text-decoration:none;
+}
+
+/*********************************** Styles for the home page *************************************/
 
 .brief-listing {
   text-align:center;
@@ -34,7 +40,7 @@ a, a:visited, a:link, a:hover {
   text-align:right;
 }
 
-/*********************************** Styles for snippet details ******************************************/
+/*********************************** Styles for snippet details ***********************************/
 
 .modal-backdrop.in {
   z-index: auto;
@@ -70,7 +76,7 @@ a, a:visited, a:link, a:hover {
   width:80px;
 }
 
-/*********************************** Insert form ******************************************/
+/*********************************** Insert form **************************************************/
 
 #insert-form {
   margin:30px 40px 0px 0px;
@@ -92,6 +98,7 @@ a, a:visited, a:link, a:hover {
   display:block;
   margin-left:70px;
 }
+
 /*********************************** Headers and footers ******************************************/
 
 #heading {
@@ -111,13 +118,17 @@ a, a:visited, a:link, a:hover {
 }
 
 #search {
-	width: 150px;
+	width: 170px;
 	float: right;
 }
 
 #searchbox {
-	height: 1.3em;
+	height: 24px;
 	width: 140px;
+  border-width:0px;
+  color:white;
+  font-weight:bold;
+  background:#390F3A;
 }
 
 .footer {
@@ -133,4 +144,15 @@ a, a:visited, a:link, a:hover {
 .footer a, .footer a:visited, .footer a:link, .footer a:hover {
   color:white;
   text-decoration:underline;
+}
+
+/******************************* Form validation errors *******************************************/
+
+label.error{
+  color:red;
+  font-weight:normal;
+}
+  
+input.error{
+  border:1px dotted red;
 }

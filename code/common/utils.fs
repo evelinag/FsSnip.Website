@@ -1,10 +1,11 @@
 module FsSnip.Utils
 
 open System
-open Suave.Http.Applicatives
 open Microsoft.FSharp.Reflection
-open Suave.Http
 open FSharp.CodeFormat
+open Suave
+open Suave.Http
+open Suave.Filters
 
 // -------------------------------------------------------------------------------------------------
 // Helpers for working with fssnip IDs, formatting F# code and for various Suave things
@@ -34,6 +35,10 @@ let demangleId (str:string) =
       demangle (acc * alphabet.Length + v) xs
   demangle 0 (str |> List.ofSeq)
 
+let HasPasscode (p:string) =
+    let passcode = p.Replace('"', ' ')
+    if String.IsNullOrWhiteSpace(p) then None else Some p 
+
 /// Web part that succeeds when the specified string is a valid FsSnip ID
 let pathWithId pf f =
   pathScan pf (fun id ctx -> async {
@@ -42,7 +47,7 @@ let pathWithId pf f =
     else return None } )
 
 /// Creates a web part from a function (to enable lazy computation)
-let delay (f:unit -> Suave.Types.WebPart) ctx = 
+let delay (f:unit -> WebPart) ctx = 
   async { return! f () ctx }
 
 module Seq = 
@@ -64,14 +69,19 @@ module Seq =
     snips |> Seq.map (fun s -> s, (f s) * 100 / max)
 
 
-let private convert (ty:System.Type) str = 
+let private convert (ty:System.Type) (strs:string[]) = 
+  let single() = 
+    if strs.Length = 1 then strs.[0]
+    else failwith "Got multiple values!"
   if ty = typeof<string option> then 
-    box (if System.String.IsNullOrWhiteSpace(str) then None else Some str)
+    box (if System.String.IsNullOrWhiteSpace(single()) then None else Some(single()))
   elif ty = typeof<bool> then 
-    box (if str = "on" then true else false)
+    box (if single() = "on" then true else false)
   elif ty = typeof<string> then 
-    box str
-  else failwithf "Could not covert '%s' to '%s'" str ty.Name
+    box (single())
+  elif ty = typeof<string[]> then 
+    box (strs)
+  else failwithf "Could not covert '%A' to '%s'" strs ty.Name
 
 let private getDefaultValue (ty:System.Type) =
   if ty.IsGenericType && ty.GetGenericTypeDefinition() = typedefof<option<_>> then null
@@ -80,13 +90,21 @@ let private getDefaultValue (ty:System.Type) =
 
 /// Read data from a form into an F# record
 let readForm<'T> (form:list<string*string option>) = 
-  let lookup = dict [ for k, v in form -> k.ToLower(), v ]
+  let lookup = 
+    [ for k, v in form do
+        match v with Some v -> yield k.ToLower(), v | _ -> () ] 
+    |> Seq.groupBy fst 
+    |> Seq.map (fun (k, vs) -> k, Seq.map snd vs)
+    |> dict
   let values =
     [| for pi in FSharpType.GetRecordFields(typeof<'T>) ->
          match lookup.TryGetValue(pi.Name.ToLower()) with
-         | true, Some v -> convert pi.PropertyType v
+         | true, vs -> convert pi.PropertyType (Array.ofSeq vs)
          | _ -> getDefaultValue pi.PropertyType |]
   FSharpValue.MakeRecord(typeof<'T>, values) :?> 'T
   
 let invalidSnippetId id =
   RequestErrors.NOT_FOUND (sprintf "Snippet with id %s not found" id)
+  
+let setStatus s : WebPart = 
+  fun ctx -> { ctx with response = { ctx.response with status = s }} |> succeed

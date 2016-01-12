@@ -13,7 +13,6 @@ open System
 open System.IO
 open Suave
 open Suave.Web
-open Suave.Types
 open Microsoft.FSharp.Compiler.Interactive.Shell
 
 // --------------------------------------------------------------------------------------
@@ -57,17 +56,19 @@ let reloadScript () =
 let currentApp = ref (fun _ -> async { return None })
 
 let rec findPort port =
-  let portIsTaken =
-    System.Net.NetworkInformation.IPGlobalProperties.GetIPGlobalProperties().GetActiveTcpListeners()
-    |> Seq.exists (fun x -> x.Port = port)
-
-  if portIsTaken then findPort (port + 1) else port
+  try
+    let tcpListener = System.Net.Sockets.TcpListener(System.Net.IPAddress.Parse("127.0.0.1"), port)
+    tcpListener.Start()
+    tcpListener.Stop()
+    port
+  with :? System.Net.Sockets.SocketException as ex ->
+    findPort (port + 1)
 
 let getLocalServerConfig port =
   { defaultConfig with
       homeFolder = Some __SOURCE_DIRECTORY__
       logger = Logging.Loggers.saneDefaultsFor Logging.LogLevel.Debug
-      bindings = [ HttpBinding.mk' HTTP  "127.0.0.1" port ] }
+      bindings = [ HttpBinding.mkSimple HTTP  "127.0.0.1" port ] }
 
 let reloadAppServer (changedFiles: string seq) =
   traceImportant <| sprintf "Changes in %s" (String.Join(",",changedFiles))

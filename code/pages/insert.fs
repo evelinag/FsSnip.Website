@@ -3,10 +3,7 @@ module FsSnip.Pages.Insert
 open System
 open System.IO
 open Suave
-open Suave.Types
-open Suave.Http
-open Suave.Http.Applicatives
-open Suave.Http.Successful
+open Suave.Operators
 open FsSnip
 open FSharp.CodeFormat
 open FSharp.Literate
@@ -20,9 +17,9 @@ type InsertForm =
     Title : string
     Passcode : string option
     Description : string option
-    Tags : string option
+    Tags : string[]
     Author : string option
-    Link : string option
+    Link : string
     Code : string
     NugetPkgs : string option }
 
@@ -48,9 +45,9 @@ let insertSnippet ctx = async {
             Passcode = defaultArg form.Passcode ""; 
             References = nugetReferences; Source = ""; Versions = 1; Tags = [| |] }
           form.Code html
-    | { Hidden = false; Description = Some descr; Author = Some author; Link = Some link; 
-        Tags = Some tags } when not (String.IsNullOrWhiteSpace(tags)) ->
-        let tags = tags.Split(',')
+
+    | { Hidden = false; Description = Some descr; Author = Some author; Link = link; 
+        Tags = tags } when tags.Length > 0 ->
         Data.insertSnippet 
           { ID = id; Title = form.Title; Comment = descr; 
             Author = author; Link = link; Date = System.DateTime.UtcNow;
@@ -64,27 +61,50 @@ let insertSnippet ctx = async {
   else
     return! DotLiquid.page "insert.html" () ctx }
 
+// -------------------------------------------------------------------------------------------------
+// REST API for checking snippet and listing tags
+// -------------------------------------------------------------------------------------------------
 
 open FSharp.Data
-type Errors = JsonProvider<"""[ {"location":[1,1,10,10], "error":true, "message":"sth"} ]""">
+open Suave.Filters
 
-let checkSnippet ctx = async {
-  use sr = new StreamReader(new MemoryStream(ctx.request.rawForm))
+let disableCache = 
+  Writers.setHeader "Cache-Control" "no-cache, no-store, must-revalidate"
+  >=> Writers.setHeader "Pragma" "no-cache"
+  >=> Writers.setHeader "Expires" "0"
+  >=> Writers.setMimeType "application/json"
+
+type CheckResponse = JsonProvider<"""
+  { "errors": [ {"location":[1,1,10,10], "error":true, "message":"sth"} ],
+    "tags": [ "test", "demo" ] }""">
+
+let checkSnippet = request (fun request -> 
+  use sr = new StreamReader(new MemoryStream(request.rawForm))
   let request = sr.ReadToEnd()
-  let doc = Literate.ParseScriptString(request, "/temp/Snippet.fsx", Utils.formatAgent)
-  let json = 
-    JsonValue.Array
-      [| for SourceError((l1,c1),(l2,c2),kind,msg) in doc.Errors ->
-         Errors.Root([| l1; c1; l2; c2 |], (kind = ErrorKind.Error), msg).JsonValue |]
+  let errors, tags = 
+    try
+      // Check the snippet and report errors
+      let doc = Literate.ParseScriptString(request, "/temp/Snippet.fsx", Utils.formatAgent)
+      let errors = 
+        [| for SourceError((l1,c1),(l2,c2),kind,msg) in doc.Errors ->
+            CheckResponse.Error([| l1; c1; l2; c2 |], (kind = ErrorKind.Error), msg) |]
 
-  return! ctx |>
-    ( Writers.setHeader "Cache-Control" "no-cache, no-store, must-revalidate"
-      >>= Writers.setHeader "Pragma" "no-cache"
-      >>= Writers.setHeader "Expires" "0"
-      >>= Writers.setMimeType "application/json"
-      >>= Successful.OK(json.ToString()) ) }
-      
+      // Recommend tags based on the snippet contents
+      let tags = [| "pattern matching"; "test" |]
+      errors, tags
+    with e ->
+      [| CheckResponse.Error([| 0; 0; 0; 0 |], true, "Parsing the snippet failed.") |], [| |]
+
+  ( disableCache
+    >=> Successful.OK(CheckResponse.Root(errors, tags).ToString()) ))
+
+let listTags = request (fun _ -> 
+    let tags = Data.getAllPublicSnippets() |> Seq.collect (fun snip -> snip.Tags) |> Seq.distinct
+    let json = JsonValue.Array [| for s in tags -> JsonValue.String s |]
+    disableCache >=> Successful.OK(json.ToString()) )
+     
 let webPart = 
   choose 
-   [ path "/pages/insert" >>= insertSnippet
-     path "/pages/insert/check" >>= checkSnippet ]
+   [ path "/pages/insert" >=> insertSnippet
+     path "/pages/insert/taglist" >=> listTags
+     path "/pages/insert/check" >=> checkSnippet ]
