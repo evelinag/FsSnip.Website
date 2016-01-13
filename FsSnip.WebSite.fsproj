@@ -26,7 +26,7 @@
     <WarningLevel>3</WarningLevel>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <DocumentationFile>bin\Debug\FsSnip.XML</DocumentationFile>
-    <Prefer32Bit>true</Prefer32Bit>
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -69,6 +69,9 @@
     <Compile Include="code\common\filters.fs" />
     <Compile Include="code\common\data.fs" />
     <Compile Include="code\common\rssfeed.fs" />
+    <Compile Include="code\recommender\stemmer.fs" />
+    <Compile Include="code\recommender\snippets.fs" />
+    <Compile Include="code\recommender\naivebayes.fs" />
     <Compile Include="code\pages\home.fs" />
     <Compile Include="code\pages\error.fs" />
     <Compile Include="code\pages\insert.fs" />

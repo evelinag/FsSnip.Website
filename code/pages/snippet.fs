@@ -3,6 +3,7 @@ module FsSnip.Snippet
 open FsSnip
 open FsSnip.Data
 open FsSnip.Utils
+open FsSnip.Recommender
 open Suave
 open Suave.Operators
 open Suave.Filters
@@ -26,7 +27,14 @@ let showSnippet id r =
       match Data.loadSnippet id r with
       | Some snippet ->
           let rev = match r with Latest -> snippetInfo.Versions - 1 | Revision r -> r
-          let similar = publicSnippets |> Seq.takeShuffled (Seq.length publicSnippets) 4
+          
+          let similar = 
+            RelatedSnippets.getSimilarSnippets id'
+            |> Seq.takeShuffled 6 4
+            |> Seq.map (fun (id, _) -> 
+                 snippets |> Seq.find (fun s -> s.ID = id))
+            |> Array.ofSeq
+
           { Html = snippet
             Details = Data.snippets |> Seq.find (fun s -> s.ID = id')
             Revision = rev 

@@ -7,6 +7,7 @@ open Suave.Operators
 open FsSnip
 open FSharp.CodeFormat
 open FSharp.Literate
+open FsSnip.Recommender
 
 // -------------------------------------------------------------------------------------------------
 // Snippet details and raw view pages
@@ -23,7 +24,7 @@ type InsertForm =
     Code : string
     NugetPkgs : string option }
 
-let insertSnippet ctx = async { 
+let insertSnippetHandler ctx = async { 
   if ctx.request.form |> Seq.exists (function "submit", _ -> true | _ -> false) then
     let form = Utils.readForm<InsertForm> ctx.request.form
     
@@ -67,6 +68,7 @@ let insertSnippet ctx = async {
 
 open FSharp.Data
 open Suave.Filters
+open FsSnip.Data
 
 let disableCache = 
   Writers.setHeader "Cache-Control" "no-cache, no-store, must-revalidate"
@@ -92,7 +94,17 @@ let checkSnippet = request (fun request ->
             CheckResponse.Error([| l1; c1; l2; c2 |], (kind = ErrorKind.Error), msg) |]
 
       // Recommend tags based on the snippet contents
-      let tags = [| "pattern matching"; "test" |]
+      let snip = 
+          { ID = -1; Title = request.Title; Comment = request.Description; Author = "";
+            Link = ""; Date = DateTime.Now; Likes = 0; Private = true;
+            Passcode = ""; References = []; Source = request.Code;
+            Versions = 1; Tags = [] }
+
+      let tags =    
+        let snippetData = RelatedSnippets.getBow doc snip
+        let predicted = PredictTags.predict snippetData
+        predicted
+        |> Seq.take 3 |> Seq.map fst |> Array.ofSeq
       errors, tags
     with e ->
       [| CheckResponse.Error([| 0; 0; 0; 0 |], true, "Parsing the snippet failed.") |], [| |]
@@ -107,6 +119,6 @@ let listTags = request (fun _ ->
      
 let webPart = 
   choose 
-   [ path "/pages/insert" >=> insertSnippet
+   [ path "/pages/insert" >=> insertSnippetHandler
      path "/pages/insert/taglist" >=> listTags
      path "/pages/insert/check" >=> checkSnippet ]
